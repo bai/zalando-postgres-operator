@@ -74,10 +74,15 @@ func (c *Cluster) syncVolumes() error {
 func (c *Cluster) syncUnderlyingEBSVolume() error {
 	c.logger.Infof("starting to sync EBS volumes: type, iops, throughput, and size")
 
-	var err error
+	var (
+		err     error
+		newSize resource.Quantity
+	)
 
 	targetValue := c.Spec.Volume
-	newSize, err := resource.ParseQuantity(targetValue.Size)
+	if newSize, err = resource.ParseQuantity(targetValue.Size); err != nil {
+		return fmt.Errorf("could not parse volume size: %v", err)
+	}
 	targetSize := quantityToGigabyte(newSize)
 
 	awsGp3 := aws.String("gp3")
@@ -91,13 +96,13 @@ func (c *Cluster) syncUnderlyingEBSVolume() error {
 		var modifySize *int64
 		var modifyType *string
 
-		if targetValue.Iops != nil {
+		if targetValue.Iops != nil && *targetValue.Iops >= int64(3000) {
 			if volume.Iops != *targetValue.Iops {
 				modifyIops = targetValue.Iops
 			}
 		}
 
-		if targetValue.Throughput != nil {
+		if targetValue.Throughput != nil && *targetValue.Throughput >= int64(125) {
 			if volume.Throughput != *targetValue.Throughput {
 				modifyThroughput = targetValue.Throughput
 			}
